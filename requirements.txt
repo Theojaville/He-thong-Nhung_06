@@ -1,0 +1,19 @@
+# ===================================================================
+# REQUIREMENTS.TXT — HỆ THỐNG ĐẾM NGƯỜI RA VÀO (AI ESP32-S3)
+# ===================================================================
+
+# 1. Thư viện cốt lõi cho mô phỏng & chạy kiểm thử AI YOLOX
+numpy>=1.24.0,<2.0.0
+pillow>=10.0.0
+onnxruntime>=1.16.0
+requests>=2.28.0
+
+# 2. Thư viện tối ưu & chuyển đổi mô hình (ONNX -> TFLite INT8 Quantization)
+onnx>=1.14.0
+onnxsim>=0.4.33
+tensorflow>=2.12.0
+onnx2tf>=1.20.0
+tqdm>=4.65.0
+
+# 3. PlatformIO Core (nếu muốn nạp code và build qua dòng lệnh CLI)
+platformio>=6.1.11
