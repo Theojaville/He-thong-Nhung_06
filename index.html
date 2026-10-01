@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Đếm Người Ra Vào Phòng - IoT Dashboard</title>
+    <!-- Nhúng Font Inter & Chart.js -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --border-color: #334155;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 24px; min-height: 100vh; }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* Header */
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+        h1 { font-size: 1.5rem; font-weight: 700; color: #60a5fa; }
+        .status-badge { background: #064e3b; color: #34d399; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+
+        /* Banner chính */
+        .hero-card {
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px;
+            position: relative; overflow: hidden; transition: all 0.3s ease;
+        }
+        .hero-title { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-sub); }
+        .hero-number { font-size: 4.5rem; font-weight: 700; margin: 8px 0; color: var(--accent-green); }
+        
+        /* Progress Bar */
+        .progress-container { background: #334155; border-radius: 10px; height: 12px; width: 100%; overflow: hidden; margin-top: 12px; }
+        .progress-bar { background: var(--accent-green); height: 100%; width: 0%; transition: width 0.5s ease, background-color 0.3s; }
+
+        /* Grid hiển thị chỉ số */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .card-title { font-size: 0.85rem; color: var(--text-sub); font-weight: 600; }
+        .card-value { font-size: 1.8rem; font-weight: 700; }
+        .card-sub { font-size: 0.75rem; color: var(--text-sub); margin-top: 4px; }
+
+        /* Cảnh báo */
+.alert-banner {
+            background: rgba(239, 68, 68, 0.15); border: 1px solid var(--accent-red); color: #fca5a5;
+            padding: 14px 20px; border-radius: 12px; margin-bottom: 24px; display: none;
+            align-items: center; gap: 12px; font-weight: 600; animation: pulse 2s infinite;
+        }
+
+        /* Chart */
+        .chart-section { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; }
+
+        /* Classes động cho trạng thái */
+        .status-green { color: var(--accent-green) !important; }
+        .status-yellow { color: var(--accent-yellow) !important; }
+        .status-red { color: var(--accent-red) !important; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>ROOM MONITORING SYSTEM</h1>
+            <div class="status-badge" id="netStatus">● WebSocket Connected</div>
+        </header>
+
+        <!-- Thẻ Cảnh Báo Sai Lệch -->
+        <div id="alertBox" class="alert-banner">
+            ⚠️ <span><strong>Cảnh báo sai lệch:</strong> Số liệu giữa Cảm biến IR và Camera AI không đồng bộ!</span>
+        </div>
+
+        <!-- Banner Tổng Số Người -->
+        <div class="hero-card">
+            <div class="hero-title">Số Người Hiện Tại Trong Phòng</div>
+            <div class="hero-number status-green" id="soNguoiHienTai">0</div>
+            <div id="trangThaiText" style="color: var(--text-sub); font-weight: 600;">Mật độ: 0% (An toàn)</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- Grid Chi Tiết 2 Nguồn Dữ Liệu -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header"><span class="card-title">MẬT ĐỘ PHÒNG</span></div>
+                <div class="card-value" id="matDo">0%</div>
+                <div class="card-sub">Sức chứa tối đa: <span id="sucChua">20</span> người</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">CẢM BIẾN HỒNG NGOẠI</span></div>
+                <div class="card-value" id="soNguoiIR">0</div>
+                <div class="card-sub">Nguồn: Bạn A (Hardware)</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">CAMERA AI</span></div>
+                <div class="card-value" id="soNguoiAI">0</div>
+                <div class="card-sub">Cập nhật: <span id="timestampAI">--:--:--</span></div>
+            </div>
+        </div>
+
+        <!-- Biểu Đồ Lịch Sử Giả Lập -->
+        <div class="chart-section">
+<h3 style="font-size: 1rem; margin-bottom: 16px; color: var(--text-sub);">Lịch Sử Số Lượng Người Tự Động (Real-time)</h3>
+            <canvas id="historyChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Khởi tạo Biểu đồ Chart.js
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        const historyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Số người trong phòng',
+                    data: [],
+                    borderColor: '#60a5fa',
+                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+                },
+                plugins: { legend: { labels: { color: '#f8fafc' } } }
+            }
+        });
+
+        // Hàm Cập Nhật Giao Diện khi nhận JSON
+        function updateDashboard(data) {
+            document.getElementById('soNguoiHienTai').innerText = data.soNguoiHienTai;
+            document.getElementById('matDo').innerText = data.matDo + '%';
+            document.getElementById('soNguoiIR').innerText = data.soNguoiIR;
+            document.getElementById('soNguoiAI').innerText = data.soNguoiAI;
+            document.getElementById('timestampAI').innerText = data.timestampAI;
+
+            // Cập nhật Thanh Progress
+            const progressBar = document.getElementById('progressBar');
+            const numEl = document.getElementById('soNguoiHienTai');
+            const textEl = document.getElementById('trangThaiText');
+            
+            progressBar.style.width = Math.min(data.matDo, 100) + '%';
+
+            // Xử lý đổi màu theo ngưỡng (Xanh/Vàng/Đỏ)
+            numEl.classList.remove('status-green', 'status-yellow', 'status-red');
+            if (data.trangThaiDen === 'xanh') {
+                numEl.classList.add('status-green');
+                progressBar.style.backgroundColor = 'var(--accent-green)';
+                textEl.innerText = `Mật độ: ${data.matDo}% (Trạng thái an toàn)`;
+            } else if (data.trangThaiDen === 'vang') {
+                numEl.classList.add('status-yellow');
+                progressBar.style.backgroundColor = 'var(--accent-yellow)';
+                textEl.innerText = `Mật độ: ${data.matDo}% (Cảnh báo: Đông người)`;
+            } else {
+                numEl.classList.add('status-red');
+                progressBar.style.backgroundColor = 'var(--accent-red)';
+                textEl.innerText = `Mật độ: ${data.matDo}% (CẢNH BÁO: QUÁ TẢI PHÒNG!)`;
+            }
+// Hiện/Ẩn Cảnh báo sai lệch
+            document.getElementById('alertBox').style.display = data.coSaiLech ? 'flex' : 'none';
+
+            // Cập nhật biểu đồ
+            const now = new Date().toLocaleTimeString();
+            if (historyChart.data.labels.length > 10) {
+                historyChart.data.labels.shift();
+                historyChart.data.datasets[0].data.shift();
+            }
+            historyChart.data.labels.push(now);
+            historyChart.data.datasets[0].data.push(data.soNguoiHienTai);
+            historyChart.update();
+        }
+
+        // GIẢ LẬP NHẬN DỮ LIỆU ĐỂ TEST
+        setInterval(() => {
+            const randomVal = Math.floor(Math.random() * 22);
+            const matDoCalc = Math.round((randomVal / 20) * 100);
+            let trangThai = 'xanh';
+            if (matDoCalc >= 80 && matDoCalc < 100) trangThai = 'vang';
+            if (matDoCalc >= 100) trangThai = 'do';
+
+            updateDashboard({
+                soNguoiIR: randomVal,
+                soNguoiAI: Math.max(0, randomVal - 2),
+                soNguoiHienTai: randomVal,
+                matDo: matDoCalc,
+                trangThaiDen: trangThai,
+                coSaiLech: randomVal > 15,
+                timestampAI: new Date().toLocaleTimeString()
+            });
+        }, 3000);
+    </script>
+</body>
+</html>
